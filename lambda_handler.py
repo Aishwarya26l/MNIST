@@ -5,6 +5,7 @@ except ImportError:
 import json
 import base64
 import os
+import ast
 
 
 def getIndexPage():
@@ -49,8 +50,8 @@ def getIndexPage():
                                     id="colab-url"
                                     class="form-control"
                                     type="text"
-                                    placeholder="https://colab.research.google.com/drive/1G4aqUBhv-e-_EMwquSxbBCNCqcJJxWqM"
-                                    value="https://colab.research.google.com/drive/1G4aqUBhv-e-_EMwquSxbBCNCqcJJxWqM"
+                                    placeholder="https://colab.research.google.com/drive/1j65v9d9sMaChxRaouvHDd88W9vsWNekk"
+                                    value="https://colab.research.google.com/drive/1j65v9d9sMaChxRaouvHDd88W9vsWNekk"
                                 />
                                 <p id="test"></p>
                             </div>
@@ -165,20 +166,6 @@ def getIndexPage():
                 this.ctx.lineWidth = 1;
                 this.ctx.strokeRect(0, 0, 449, 449);
                 this.ctx.lineWidth = 0.05;
-                for (var i = 0; i < 27; i++) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo((i + 1) * 16,   0);
-                    this.ctx.lineTo((i + 1) * 16, 449);
-                    this.ctx.closePath();
-                    this.ctx.stroke();
-
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(  0, (i + 1) * 16);
-                    this.ctx.lineTo(449, (i + 1) * 16);
-                    this.ctx.closePath();
-                    this.ctx.stroke();
-                }
-                this.drawInput();
                 $('#hidden').text('Initialised');
                 $('#output td').text('').removeClass('table-success');
             }
@@ -250,7 +237,7 @@ def getIndexPage():
                                 var max = 0;
                                 var max_index = 0;
                                 for (var j = 0; j < 10; j++) {
-                                    var value = Math.round(data.results[i][j] * 1000);
+                                    var value = Math.round(data.results.mnist[i][j] * 1000);
                                     if (value > max) {
                                         max = value;
                                         max_index = j;
@@ -275,7 +262,7 @@ def getIndexPage():
                             }
                         },
                         error: (data) => {
-                            $('#test').text('Error!');
+                            $('#test').text(JSON.stringify(data.responseJSON));
                         }
                     });
                 };
@@ -330,9 +317,26 @@ def lambda_handler(event, context):
         print(json.dumps(payload))
         jupyterNbExecuter = os.environ['jupyterNbExecuter']
         modelResponse = requests.post(jupyterNbExecuter, json=payload)
+        print(modelResponse.json())
         if(modelResponse.status_code == 200):
-            if(modelResponse.json()["result"]):
-                results = json.loads(modelResponse.json()["result"])["results"]
+            if(str(modelResponse.json()[
+                    "ipynb"]["cells"]).find("ename") != -1):
+                response = {
+                    "statusCode": 500,
+                    "headers": {
+                        "Content-Type": "application/json",
+                    },
+                    "body": json.dumps({
+                        "results": "Error while executing notebook"
+                    })
+                }
+            elif(modelResponse.json()["result"]):
+                print(modelResponse.json()["result"])
+                print(type(modelResponse.json()["result"]))
+                # json.loads(json.dumps(ast.literal_eval(json_data)))["results"]
+                # print(json.loads(modelResponse.json()["result"]))
+                results = json.loads(json.dumps(ast.literal_eval(
+                    modelResponse.json()["result"])))["results"]
                 response = {
                     "statusCode": 200,
                     "headers": {
@@ -359,7 +363,7 @@ def lambda_handler(event, context):
                     "Content-Type": "application/json",
                 },
                 "body":  json.dumps({
-                    "results": "Error while executing notebook."
+                    "results": "Error"
                 })
             }
 
